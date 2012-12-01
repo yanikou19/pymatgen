@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-A master convenience script for many tools for vasp analysis.
+A master convenience script with many tools for vasp and structure analysis.
 """
 
 from __future__ import division
@@ -33,6 +33,7 @@ from pymatgen.io.vaspio_set import MaterialsProjectVaspInputSet
 from pymatgen.io.smartio import read_structure, write_structure
 from pymatgen.io.cssrio import Cssr
 from pymatgen.symmetry.finder import SymmetryFinder
+from pymatgen.alchemy.transmuters import StandardTransmuter
 
 save_file = "vasp_data.gz"
 
@@ -167,7 +168,6 @@ def parse_vasp(args):
             get_energies(d, args.reanalyze, args.verbose, args.pretty,
                          args.detailed, args.sort[0])
     if args.ion_list:
-        ion_list = list()
         if args.ion_list[0] == "All":
             ion_list = None
         else:
@@ -208,7 +208,8 @@ def convert_fmt(args):
             c.write_file(out_filename)
         elif oformat == "VASP":
             input_set = MaterialsProjectVaspInputSet()
-            input_set.write_input(structure, output_dir=out_filename)
+            transmuter = StandardTransmuter.from_structures([structure], [])
+            transmuter.write_vasp_input(input_set, output_dir=out_filename)
 
     except Exception as ex:
         print "Error converting file. Are they in the right format?"
@@ -287,7 +288,7 @@ if __name__ == "__main__":
                              help="Sort criteria. Defaults to energy / atom.")
     parser_vasp.set_defaults(func=parse_vasp)
 
-    parser_plot = subparsers.add_parser("plot", help="Plotting for dos.")
+    parser_plot = subparsers.add_parser("plotdos", help="Plotting for dos.")
     parser_plot.add_argument("filename", metavar="filename", type=str, nargs=1,
                              help="vasprun.xml file to plot")
     parser_plot.add_argument("-s", "--site", dest="site", action="store_const",

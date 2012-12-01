@@ -23,7 +23,6 @@ from pymatgen.core.lattice import Lattice
 from pymatgen.core.periodic_table import Element, Specie, \
     smart_element_or_specie
 from pymatgen.serializers.json_coders import MSONable
-from pymatgen.util.coord_utils import coords_to_unit_cell
 
 
 class Site(collections.Mapping, collections.Hashable, MSONable):
@@ -101,7 +100,7 @@ class Site(collections.Mapping, collections.Hashable, MSONable):
             pt:
                 cartesian coordinates of point.
         """
-        return np.linalg.norm(np.array(pt) - np.array(self._coords))
+        return np.linalg.norm(np.array(pt) - self._coords)
 
     @property
     def species_string(self):
@@ -201,12 +200,8 @@ class Site(collections.Mapping, collections.Hashable, MSONable):
         Minimally effective hash function that just distinguishes between Sites
         with different elements.
         """
-        hashcode = 0
-        for el in self._species.keys():
-            #Ignore elements with zero amounts.
-            if self[el] != 0:
-                hashcode += el.Z
-        return 7
+        hashcode = sum((el.Z * occu for el, occu in self._species.items()))
+        return hashcode
 
     def __contains__(self, el):
         return el in self._species
@@ -218,9 +213,8 @@ class Site(collections.Mapping, collections.Hashable, MSONable):
         return self._species.__iter__()
 
     def __repr__(self):
-        outs = []
-        outs.append("Non-periodic Site")
-        outs.append("xyz        : (%0.4f, %0.4f, %0.4f)" % tuple(self.coords))
+        outs = ["Non-periodic Site",
+                "xyz        : (%0.4f, %0.4f, %0.4f)" % tuple(self.coords)]
         for k, v in self._species.items():
             outs.append("element    : %s" % k.symbol)
             outs.append("occupation : %0.2f" % v)
@@ -233,7 +227,7 @@ class Site(collections.Mapping, collections.Hashable, MSONable):
         automatically sorted in LiFePO4.
         """
         def avg_electroneg(sps):
-            return sum([sp.X * occu for sp, occu in sps.items()])
+            return sum((sp.X * occu for sp, occu in sps.items()))
         if avg_electroneg(self._species) < avg_electroneg(other._species):
             return -1
         if avg_electroneg(self._species) > avg_electroneg(other._species):
@@ -253,12 +247,12 @@ class Site(collections.Mapping, collections.Hashable, MSONable):
             d = spec.to_dict
             d["occu"] = occu
             species_list.append(d)
-        d = {"name": self.species_string, "species": species_list,
-             "occu": occu, "xyz": [float(c) for c in self._coords],
-             "properties": self._properties}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        return d
+        return {"name": self.species_string, "species": species_list,
+                "occu": occu,
+                "xyz": [float(c) for c in self._coords],
+                "properties": self._properties,
+                "@module": self.__class__.__module__,
+                "@class": self.__class__.__name__}
 
     @staticmethod
     def from_dict(d):
@@ -315,8 +309,7 @@ class PeriodicSite(Site, MSONable):
             if coords_are_cartesian else coords
 
         if to_unit_cell:
-            for i, fcoords in enumerate(self._fcoords):
-                self._fcoords[i] = fcoords - floor(fcoords)
+            self._fcoords = np.mod(self._fcoords, 1)
         c_coords = self._lattice.get_cartesian_coords(self._fcoords)
         Site.__init__(self, atoms_n_occu, c_coords, properties)
 
@@ -360,9 +353,8 @@ class PeriodicSite(Site, MSONable):
         """
         Copy of PeriodicSite translated to the unit cell.
         """
-        return PeriodicSite(self._species, coords_to_unit_cell(self._fcoords),
-                            self._lattice,
-                            properties=self._properties)
+        return PeriodicSite(self._species, np.mod(self._fcoords, 1),
+                            self._lattice, properties=self._properties)
 
     def is_periodic_image(self, other, tolerance=1e-8, check_lattice=True):
         """
@@ -524,9 +516,8 @@ class PeriodicSite(Site, MSONable):
         return self.distance_and_image(other, jimage)[0]
 
     def __repr__(self):
-        outs = []
-        outs.append("Periodic Site")
-        outs.append("abc : (%0.4f, %0.4f, %0.4f)" % tuple(self._fcoords))
+        outs = ["Periodic Site",
+                "abc : (%0.4f, %0.4f, %0.4f)" % tuple(self._fcoords)]
         for k, v in self._species.items():
             outs.append("element    : %s" % k.symbol)
             outs.append("occupation : %0.2f" % v)
@@ -542,14 +533,13 @@ class PeriodicSite(Site, MSONable):
             d = spec.to_dict
             d["occu"] = occu
             species_list.append(d)
-        d = {"label": self.species_string, "species": species_list,
-             "occu": occu, "xyz": [float(c) for c in self._coords],
-             "abc": [float(c) for c in self._fcoords],
-             "lattice": self._lattice.to_dict,
-             "properties": self._properties}
-        d["@module"] = self.__class__.__module__
-        d["@class"] = self.__class__.__name__
-        return d
+        return {"label": self.species_string, "species": species_list,
+                "occu": occu, "xyz": [float(c) for c in self._coords],
+                "abc": [float(c) for c in self._fcoords],
+                "lattice": self._lattice.to_dict,
+                "properties": self._properties,
+                "@module": self.__class__.__module__,
+                "@class": self.__class__.__name__}
 
     @staticmethod
     def from_dict(d, lattice=None):
