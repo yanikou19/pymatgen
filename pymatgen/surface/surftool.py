@@ -140,10 +140,14 @@ class Surftool():
             MLCM=MLCM*ii / fractions.gcd(MLCM,ii)
         
         millerindex=millerindex*MLCM;
-        roundedmillerindex=np.array([ round(elem) for elem in millerindex])
+        roundedmillerindex=np.array([ round(elem,1) for elem in millerindex])
         diffmill=roundedmillerindex-millerindex
         if npl.norm(diffmill)>0.001:
             raise SystemError('EGREGIOUS ERROR, MILLER INDEX IS FRACTIONAL')
+        
+        for elem in range(0,3):
+            if roundedmillerindex[elem]==-0:
+                roundedmillerindex[elem]=0
         
         millerindex=roundedmillerindex
         MGCD=np.abs(fractions.gcd(fractions.gcd(millerindex[0],millerindex[1]),millerindex[2]))
@@ -209,11 +213,7 @@ class Surftool():
                     millerindex=self.getmillerfrom2v(basis, millerv1, millerv2)
                     exists=False
                     for Ccheck in C:
-                        c=0
-                        for ind in range(0,3):
-                            if Ccheck[ind]==millerindex[ind]:
-                                c+=1
-                        if c==3:
+                        if (Ccheck==millerindex).all():
                             exists=True                    
                     if exists==False:
                         C.append(millerindex)
@@ -222,4 +222,32 @@ class Surftool():
         for Cx in range(0,len(C)):
             retC[Cx]=C[Cx]
         a=retC
-        return a[a[:,0].argsort(),]    
+        a=a[a[:,2].argsort(),]
+        a=a[a[:,1].argsort(),]
+        a=a[a[:,0].argsort(),]
+        return a    
+    
+    def proj(self,u,v):
+        p=np.dot(v,u)/np.dot(u,u)*u    
+        return p
+    
+    def sproj(self,u,v):
+        p=np.dot(v,u)/np.dot(u,u)*npl.norm(u)    
+        return p
+    
+    def gramschmidt(self,B):
+        b1=B[0]
+        b2=B[1]
+        b3=B[2]
+        f1=b1
+        f2=b2-self.proj(f1,b2)
+        f3=b3-self.proj(f1,b3)-self.proj(f2,b3)
+        
+        f1hat=f1/npl.norm(f1)
+        f2hat=f2/npl.norm(f2)
+        f3hat=f3/npl.norm(f3)
+        
+        F=np.array([f1hat,f2hat,f3hat])
+        return F
+
+        

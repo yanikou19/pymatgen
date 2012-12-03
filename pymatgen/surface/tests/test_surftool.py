@@ -38,12 +38,12 @@ class Surftooltest(unittest.TestCase):
         self.s.trotation(120,v)
         
     def testgetmillerfrom2v(self):
-        v1=np.array([2,1,0])
-        v2=np.array([1,0,1])
-        basis=[[1, 0.00, 0.00],
-               [0.00, 1, 0.00],
-               [0.00, 0.00, 1]]
-        self.s.getmillerfrom2v(basis, v1, v2)
+        v2=np.array([ 0.,0.,13.11054233])
+        v1=np.array([ 0.,4.80504221,  0.])
+        basis=np.array([[0, 4.8050422055, 0],
+                        [4.1612866760, -2.4025211027, 0],
+                        [0, 0, 13.1105423350]])
+        print self.s.getmillerfrom2v(basis, v1, v2)
         
     def testgetsymfam(self):
         pg=np.array([[1.0000,0,0,0,0],
@@ -61,7 +61,7 @@ class Surftooltest(unittest.TestCase):
                         [4.1612866760, -2.4025211027, 0],
                         [0, 0, 13.1105423350]])
         C=self.s.getsymfam(basis, np.array([1, 1, 3]), pg)
-        print C
+        
         
 if __name__ == '__main__':
     unittest.main()
