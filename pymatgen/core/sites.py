@@ -23,6 +23,7 @@ from pymatgen.core.lattice import Lattice
 from pymatgen.core.periodic_table import Element, Specie, \
     smart_element_or_specie
 from pymatgen.serializers.json_coders import MSONable
+from pymatgen.util.coord_utils import pbc_diff
 
 
 class Site(collections.Mapping, collections.Hashable, MSONable):
@@ -213,12 +214,10 @@ class Site(collections.Mapping, collections.Hashable, MSONable):
         return self._species.__iter__()
 
     def __repr__(self):
-        outs = ["Non-periodic Site",
-                "xyz        : (%0.4f, %0.4f, %0.4f)" % tuple(self.coords)]
-        for k, v in self._species.items():
-            outs.append("element    : %s" % k.symbol)
-            outs.append("occupation : %0.2f" % v)
-        return "\n".join(outs)
+        return "Site: {} ({:.4f}, {:.4f}, {:.4f})".format(
+            self.species_string, self._coords[0], self._coords[1],
+            self._coords[2]
+        )
 
     def __cmp__(self, other):
         """
@@ -364,14 +363,13 @@ class PeriodicSite(Site, MSONable):
         """
         Returns True if sites are periodic images of each other.
         """
-        if check_lattice and self.lattice != other.lattice:
+        if check_lattice and self._lattice != other._lattice:
             return False
-        if self.species_and_occu != other.species_and_occu:
+        if self._species != other._species:
             return False
-        frac_diff = abs(np.array(self._fcoords) - np.array(other._fcoords)) % 1
-        frac_diff = [abs(a) < tolerance or abs(a) > 1 - tolerance
-                     for a in frac_diff]
-        return  all(frac_diff)
+
+        frac_diff = pbc_diff(self._fcoords, other._fcoords)
+        return  np.allclose(frac_diff, [0, 0, 0], atol=tolerance)
 
     def __eq__(self, other):
         return self._species == other._species and \
@@ -423,7 +421,7 @@ class PeriodicSite(Site, MSONable):
                                                        - self._fcoords)
         dist = np.linalg.norm(mapped_vec)
         return dist, jimage
-
+    
     def distance_and_image_from_frac_coords(self, fcoords, jimage=None):
         """
         Gets distance between site and a fractional coordinate assuming
@@ -451,17 +449,17 @@ class PeriodicSite(Site, MSONable):
         if jimage is None:
             #The following code is heavily vectorized to maximize speed.
             #Get the image adjustment necessary to bring coords to unit_cell.
-            adj1 = -np.floor(self._fcoords)
-            adj2 = -np.floor(fcoords)
+            adj1 = np.floor(self._fcoords)
+            adj2 = np.floor(fcoords)
             #Shift coords to unitcell
-            coord1 = self._fcoords + adj1
-            coord2 = fcoords + adj2
+            coord1 = self._fcoords - adj1
+            coord2 = fcoords - adj2
             # Generate set of images required for testing.
-            test_set = [[-1, 0] if coord1[i] < coord2[i] else [0, 1]
-                        for i in range(3)]
-            images = list(itertools.product(*test_set))
+            # This is a cheat to create an 8x3 array of all length 3 combinations of 0,1
+            test_set = np.unpackbits(np.array([5, 57, 119], dtype=np.uint8)).reshape(8,3)
+            images = np.copysign(test_set, coord1-coord2)
             # Create tiled cartesian coords for computing distances.
-            vec = np.tile(coord2, (8, 1)) - np.tile(coord1, (8, 1)) + images
+            vec = np.tile(coord2 - coord1, (8, 1)) + images
             vec = self._lattice.get_cartesian_coords(vec)
             # Compute distances manually.
             dist = np.sqrt(np.sum(vec ** 2, 1)).tolist()
@@ -469,7 +467,7 @@ class PeriodicSite(Site, MSONable):
             # to the min distance.
             mindist = min(dist)
             ind = dist.index(mindist)
-            return mindist, adj2 - adj1 + images[ind]
+            return mindist, adj1 - adj2 + images[ind]
 
         mapped_vec = self._lattice.get_cartesian_coords(jimage + fcoords
                                                         - self._fcoords)
@@ -520,12 +518,12 @@ class PeriodicSite(Site, MSONable):
         return self.distance_and_image(other, jimage)[0]
 
     def __repr__(self):
-        outs = ["Periodic Site",
-                "abc : (%0.4f, %0.4f, %0.4f)" % tuple(self._fcoords)]
-        for k, v in self._species.items():
-            outs.append("element    : %s" % k.symbol)
-            outs.append("occupation : %0.2f" % v)
-        return "\n".join(outs)
+        return "PeriodicSite: {} ({:.4f}, {:.4f}, {:.4f}) [{:.4f}, {:.4f}, " \
+               "{:.4f}]".format(
+            self.species_string, self._coords[0], self._coords[1],
+            self._coords[2], self._fcoords[0], self._fcoords[1],
+            self._fcoords[2]
+        )
 
     @property
     def to_dict(self):

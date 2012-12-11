@@ -270,9 +270,9 @@ class Structure(SiteCollection, MSONable):
                 Defaults to None for no properties.
         """
         if len(species) != len(coords):
-            raise StructureError(("The list of atomic species must be of the",
-                                  "same length as the list of fractional",
-                                  " coordinates."))
+            raise StructureError("The list of atomic species must be of the"
+                                 "same length as the list of fractional"
+                                 " coordinates.")
 
         if isinstance(lattice, Lattice):
             self._lattice = lattice
@@ -356,6 +356,8 @@ class Structure(SiteCollection, MSONable):
         if other is None:
             return False
         if len(self) != len(other):
+            return False
+        if self._lattice != other._lattice:
             return False
         for site in self:
             if site not in other:
