@@ -64,8 +64,6 @@ class Surftooltest(unittest.TestCase):
         
         self.s.transformbasis(basis, atoms,maxindex, pg)
         
-        
-        
                
 if __name__ == '__main__':
     unittest.main()

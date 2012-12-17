@@ -53,7 +53,7 @@ class Sobat(object):
 class Vaspsurface():
 
     def transformbasis(self, basis, atoms, maxindex, pg):
-        ListofS3A2V=[]
+        ListofSobats=[]
         if len(maxindex)==1:
             millera=maxindex
             millerb=maxindex
@@ -66,7 +66,7 @@ class Vaspsurface():
             standardbasis=np.eye(3,3)
             atomcoords=np.array[[0,0,0,0]]
             S3A2V=Sobat(P,twovects,v3,standardbasis,maxindex,atomcoords)
-            ListofS3A2V.append(S3A2V)
+            ListofSobats.append(S3A2V)
             raise StandardError('Warning, maxindex must be a number or a vector, exiting')
             return
         
@@ -166,18 +166,18 @@ class Vaspsurface():
                     standardbasis=np.eye(3,3)
                     atomiccoords=np.array([[0,0,0,0]])
                     S3A2V=Sobat(threepts,twovects,v3,standardbasis,millerindex,atomiccoords)
-                    ListofS3A2V.append(S3A2V)
+                    ListofSobats.append(S3A2V)
                     
                 elif duplicate==1 and replace !=0:
                     atomiccoords=np.array([[0,0,0,0]])
                     S3A2V=Sobat(threepts,twovects,v3,standardbasis,millerindex,atomiccoords)
-                    ListofS3A2V[replace]=S3A2V
+                    ListofSobats[replace]=S3A2V
                     
         
         '''
         Check if this part is correct:            
-        for jj in range(0,len(ListofS3A2V)):
-            X=ListofS3A2V[jj]
+        for jj in range(0,len(ListofSobats)):
+            X=ListofSobats[jj]
             X.display();
         '''
                     
@@ -185,14 +185,14 @@ class Vaspsurface():
         Find third vector
         '''
         
-        counter=len(ListofS3A2V)
+        counter=len(ListofSobats)
         
         x=basis[0]
         y=basis[1]
         z=basis[2]
         
         for ss in range(0,counter):
-            S=ListofS3A2V[ss]
+            S=ListofSobats[ss]
             lastT=100
             S7=np.cross(S.twovects[0],S.twovects[1])
             v1=S.twovects[0]
@@ -215,8 +215,8 @@ class Vaspsurface():
                                 v3=v3temp
                         
                              
-            ListofS3A2V[ss].v3=v3
-#            ListofS3A2V[ss].display()
+            ListofSobats[ss].v3=v3
+#            ListofSobats[ss].display()
 
         
         '''
@@ -224,7 +224,7 @@ class Vaspsurface():
         '''
         
         for tt in range(0,counter):
-            S=ListofS3A2V[tt]
+            S=ListofSobats[tt]
             v1=S.twovects[0]
             v2=S.twovects[1]
             v3=S.v3
@@ -276,7 +276,7 @@ class Vaspsurface():
         ListofAtoms=[]
         
         for mm in range(0,counter):
-            S=ListofS3A2V[mm]
+            S=ListofSobats[mm]
             Sxyz=np.array([[0,0,0],[0,0,0]])
             Ra=len(atoms)
             O=S.threepts[0]
@@ -346,7 +346,6 @@ class Vaspsurface():
                 if XA>=-0.001 and XA<0.999 and XB>=-0.001 and XB<0.999 and XC>=-0.001 and XC<0.999:
                     newatom=np.array([[XA,XB,XC,XL]])
                     POSATOMS.append(newatom)
-                    
             
             AtomicCoords=np.zeros((len(POSATOMS),4))
             for PAx in range(0,len(POSATOMS)):
@@ -359,6 +358,7 @@ class Vaspsurface():
                 raise SystemError("ERROR: Number of atoms inconsistent with the size of basis!")
             
             S.atomcoords=AtomicCoords
-            S.display()
+        
+        return ListofSobats
         
         
