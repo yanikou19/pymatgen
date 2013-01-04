@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 """
-Utilities for manipulating coordinates or list of coordinates,
-in periodic boundary conditions or otherwise.
+Utilities for manipulating coordinates or list of coordinates, under periodic
+boundary conditions or otherwise. Many of these are heavily vectorized in
+numpy for performance.
 """
 
 from __future__ import division
@@ -19,23 +20,44 @@ import math
 import itertools
 
 
-def in_coord_list(coord_list, coord, **kwargs):
+def find_in_coord_list(coord_list, coord, atol=1e-8):
     """
-    Tests if a particular coord is within a coord_list using numpy.allclose.
+    Find the indices of matches of a particular coord in a coord_list.
 
     Args:
         coord_list:
             List of coords to test
         coord:
             Specific coordinates
-        kwargs:
-            keyword arguments supported by numpy.allclose. Please refer to
-            documentation for numpy.allclose.
+        atol:
+            Absolute tolerance. Defaults to 1e-8.
+            Accepts both scalar and array
+
+    Returns:
+        Indices of matches, e.g., [0, 1, 2, 3]. Empty list if not found.
     """
-    for test in coord_list:
-        if np.allclose(test, coord, **kwargs):
-            return True
-    return False
+    if len(coord_list) == 0:
+        return []
+    diff = np.array(coord_list) - np.array(coord)[None, :]
+    return np.where(np.all(np.abs(diff) < atol, axis=1))[0]
+
+
+def in_coord_list(coord_list, coord, atol=1e-8):
+    """
+    Tests if a particular coord is within a coord_list.
+
+    Args:
+        coord_list:
+            List of coords to test
+        coord:
+            Specific coordinates
+        atol:
+            Absolute tolerance. Defaults to 1e-8.
+            Accepts both scalar and array
+    Returns:
+        True if coord is in the coord list.
+    """
+    return len(find_in_coord_list(coord_list, coord, atol=atol)) > 0
 
 
 def get_linear_interpolated_value(x_values, y_values, x):
@@ -69,16 +91,18 @@ def get_linear_interpolated_value(x_values, y_values, x):
     return y1 + (y2 - y1) / (x2 - x1) * (x - x1)
 
 
-def pbc_diff(fcoord1, fcoord2):
+def pbc_diff(fcoords1, fcoords2):
     """
     Returns the 'fractional distance' between two coordinates taking into
     account periodic boundary conditions.
 
     Args:
-        fcoord1:
-            First fractional coordinate.
-        fcoord2:
-            Second fractional coordinate.
+        fcoords1:
+            First set of fractional coordinates. e.g., [0.5, 0.6,
+            0.7] or [[1.1, 1.2, 4.3], [0.5, 0.6, 0.7]]. It can be a single
+            coord or any array of coords.
+        fcoords2:
+            Second set of fractional coordinates.
 
     Returns:
         Fractional distance. Each coordinate must have the property that
@@ -86,28 +110,51 @@ def pbc_diff(fcoord1, fcoord2):
         pbc_diff([0.1, 0.1, 0.1], [0.3, 0.5, 0.9]) = [-0.2, -0.4, 0.2]
         pbc_diff([0.9, 0.1, 1.01], [0.3, 0.5, 0.9]) = [-0.4, -0.4, 0.11]
     """
-    fdist = np.mod(fcoord1, 1) - np.mod(fcoord2, 1)
-    return [a if abs(a) <= 0.5 else a - a/abs(a) for a in fdist]
+    fdist = np.subtract(fcoords1, fcoords2)
+    return fdist - np.round(fdist)
 
 
-def in_coord_list_pbc(coord_list, coord, **kwargs):
+def find_in_coord_list_pbc(fcoord_list, fcoord, atol=1e-8):
     """
-    Tests if a particular coord is within a coord_list using numpy.allclose.
+    Get the indices of all points in a fracitonal coord list that are
+    equal to a fractional coord (with a tolerance), taking into account
+    periodic boundary conditions.
 
     Args:
-        coord_list:
-            List of coords to test
-        coord:
-            Specific coordinates
-        kwargs:
-            keyword arguments supported by numpy.allclose. Please refer to
-            documentation for numpy.allclose.
+        fcoord_list:
+            List of fractional coords
+        fcoord:
+            A specific fractional coord to test.
+        atol:
+            Absolute tolerance. Defaults to 1e-8.
+
+    Returns:
+        Indices of matches, e.g., [0, 1, 2, 3]. Empty list if not found.
     """
-    for test in coord_list:
-        fdiff = pbc_diff(test, coord)
-        if np.allclose(fdiff, [0,0,0], **kwargs):
-            return True
-    return False
+    if len(fcoord_list) == 0:
+        return []
+    fcoords = np.tile(fcoord, (len(fcoord_list), 1))
+    fdist = fcoord_list - fcoords
+    fdist -= np.round(fdist)
+    return np.where(np.all(np.abs(fdist) < atol, axis=1))[0]
+
+
+def in_coord_list_pbc(fcoord_list, fcoord, atol=1e-8):
+    """
+    Tests if a particular fractional coord is within a fractional coord_list.
+
+    Args:
+        fcoord_list:
+            List of fractional coords to test
+        fcoord:
+            A specific fractional coord to test.
+        atol:
+            Absolute tolerance. Defaults to 1e-8.
+
+    Returns:
+        True if coord is in the coord list.
+    """
+    return len(find_in_coord_list_pbc(fcoord_list, fcoord, atol=atol)) > 0
 
 
 def get_points_in_sphere_pbc(lattice, frac_points, center, r):
@@ -141,28 +188,38 @@ def get_points_in_sphere_pbc(lattice, frac_points, center, r):
         [(site, dist) ...] since most of the time, subsequent processing
         requires the distance.
     """
-    recp_len = lattice.reciprocal_lattice.abc
+    recp_len = np.array(lattice.reciprocal_lattice.abc)
     sr = r + 0.15
-    nmax = [sr * l / (2 * math.pi) for l in recp_len]
+    nmax = sr * recp_len / (2 * math.pi)
     pcoords = lattice.get_fractional_coords(center)
-    axis_ranges = []
     floor = math.floor
-    for i in range(3):
-        rangemax = int(floor(pcoords[i] + nmax[i]))
-        rangemin = int(floor(pcoords[i] - nmax[i]))
-        axis_ranges.append(range(rangemin, rangemax + 1))
-    neighbors = []
+
     n = len(frac_points)
     fcoords = np.array(frac_points)
     frac_2_cart = lattice.get_cartesian_coords
     pts = np.tile(center, (n, 1))
-    for image in itertools.product(*axis_ranges):
-        shift = np.tile(image, (n, 1))
-        shifted_coords = fcoords + shift
-        coords = frac_2_cart(shifted_coords)
-        dists = np.sqrt(np.sum((coords - pts) ** 2, axis=1))
-        within_r = dists <= r
-        for i in range(n):
-            if within_r[i]:
-                neighbors.append((shifted_coords[i], dists[i], i))
-    return neighbors
+    indices = np.array(range(n))
+
+    arange = np.arange(start=int(floor(pcoords[0] - nmax[0])),
+                       stop=int(floor(pcoords[0] + nmax[0])) + 1)
+    brange = np.arange(start=int(floor(pcoords[1] - nmax[1])),
+                       stop=int(floor(pcoords[1] + nmax[1])) + 1)
+    crange = np.arange(start=int(floor(pcoords[2] - nmax[2])),
+                       stop=int(floor(pcoords[2] + nmax[2])) + 1)
+
+    arange = arange[:, None] * np.array([1, 0, 0])[None, :]
+    brange = brange[:, None] * np.array([0, 1, 0])[None, :]
+    crange = crange[:, None] * np.array([0, 0, 1])[None, :]
+
+    images = arange[:, None, None] + brange[None, :, None] + \
+        crange[None, None, :]
+
+    shifted_coords = fcoords[:, None, None, None, :] + images[None, :, :, :, :]
+    coords = frac_2_cart(shifted_coords)
+    dists = np.sqrt(np.sum((coords - pts[:, None, None, None, :]) ** 2, axis=4))
+    within_r = np.where(dists <= r)
+
+    d = [shifted_coords[within_r], dists[within_r], indices[within_r[0]]]
+
+    return np.transpose(d)
+    

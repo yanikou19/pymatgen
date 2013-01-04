@@ -44,7 +44,7 @@ to be made for the long term health of the code.
 
 The most up-to-date documention is available at our github page
 (http://materialsproject.github.com/pymatgen/), where you can also report any
-bugs/issues. If you wish to be notified via email of pymatgen releases, you may
+bugs/issues. If you wish to be notified of pymatgen releases, you may
 become a member of `pymatgen's Google Groups page`_.
 
    *The code is mightier than the pen.*
@@ -52,12 +52,9 @@ become a member of `pymatgen's Google Groups page`_.
 Latest Change Log
 =================
 
-1. Bug fix for VolumetricData parsing and methods such as CHGCAR and LOCPOT.
-   Previously, the parsing was done incorrectly because VASP actually provides
-   data by running through the x-axis first, followed by y, then z.
-2. Bug fix for reverse_readline so that it works for gzipped and bzipped
-   strucutures (courtesy of Anubhav Jain).
-3. Miscellaneous bug fixes.
+1. New StructureMatcher that effectively replaces StructureFitter. Orders of
+   magnitude faster and more robust. StructureFitter is now deprecated.
+2. Miscellaneous bug fixes and speedups.
 
 :doc:`Older versions </changelog>`
 
@@ -69,7 +66,8 @@ Stable version
 
 pymatgen is now in the Python Package Index (`PyPI`_). The version on
 PyPI is always the latest stable release that will be hopefully, be relatively
-bug-free. If you have setuptools or pip installed installed,
+bug-free. The easiest way to install pymatgen on any system is to use
+easy_install or pip. If you have setuptools or pip installed,
 you can just type::
 
    easy_install pymatgen
@@ -144,7 +142,7 @@ scripts in `scripts directory of pymatgen's github repo
 Here, we will discuss the most versatile of these scripts,
 known as matgenie.py. The typical usage of matgenie.py is::
 
-    matgenie.py {analyze, plot, convert, symm, view} additional_arguments
+    matgenie.py {analyze, plotdos, plotchgint, convert, symm, view} additional_arguments
 
 At any time, you can use "matgenie.py --help" or "matgenie.py subcommand
 --help" to bring up a useful help message on how to use these subcommands.
@@ -183,31 +181,28 @@ now provided, similar in style to numpy. Supported objects include Element,
 Composition, Structure, Molecule, Spin and Orbital. Here are some quick
 examples of the core capabilities and objects::
 
-   >>> from pymatgen import Element, Composition, Lattice, Structure
+   >>> import pymatgen as mg
    >>>
-   >>> si = Element("Si")
+   >>> si = mg.Element("Si")
    >>> si.atomic_mass
    28.0855
    >>> si.melting_point
    u'1687 K'
    >>>
-   >>> comp = Composition("Fe2O3")
+   >>> comp = mg.Composition("Fe2O3")
    >>> comp.weight
    159.6882
-   >>> comp[Element("Fe")]
+   >>> comp[mg.Element("Fe")]
    2.0
-   >>> comp.get_atomic_fraction(Element("Fe"))
+   >>> comp.get_atomic_fraction(mg.Element("Fe"))
    0.4
-   >>>
-   >>> structure = Structure(Lattice.cubic(4.2), ["Cs", "Cl"],
-   ...                               [[0, 0, 0], [0.5, 0.5, 0.5]])
+   >>> lattice = mg.Lattice.cubic(4.2)
+   >>> structure = mg.Structure(lattice, ["Cs", "Cl"],
+   ...                       [[0, 0, 0], [0.5, 0.5, 0.5]])
    >>> structure.volume
    74.088000000000008
    >>> structure[0]
-   Periodic Site
-   abc : (0.0000, 0.0000, 0.0000)
-   element    : Cs
-   occupation : 1.00
+   PeriodicSite: Cs (0.0000, 0.0000, 0.0000) [0.0000, 0.0000, 0.0000]
    >>>
    >>> #Integrated symmetry tools from spglib.
    ... from pymatgen.symmetry.finder import SymmetryFinder
@@ -275,9 +270,9 @@ API/Reference Docs
 
 The API docs are generated using Sphinx auto-doc and outlines the purpose of all
 modules and classes, and the expected argument and returned objects for most
-methods. They are available at this link below
+methods. They are available at the link below.
 
-:doc:`pymatgen API docs </modules>`.
+:doc:`pymatgen API docs </modules>`
 
 How to cite pymatgen
 ====================
@@ -289,7 +284,7 @@ work:
    Michael Kocher, Shreyas Cholia, Dan Gunter, Vincent Chevrier, Kristin A.
    Persson, Gerbrand Ceder. *Python Materials Genomics (pymatgen) : A Robust,
    Open-Source Python Library for Materials Analysis.* Computational
-   Materials Science, 2012, `doi:10.1016/j.commatsci.2012.10.028
+   Materials Science, 2013, 68, 314–319. `doi:10.1016/j.commatsci.2012.10.028
    <http://dx.doi.org/10.1016/j.commatsci.2012.10.028>`_
 
 In addition, some of pymatgen's functionality is based on scientific advances

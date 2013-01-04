@@ -12,6 +12,7 @@ for materials analysis. It currently powers the public Materials Project
 (http://www.materialsproject.org), an initiative to make calculated properties
 on a large number of materials available to materials researchers and
 designers. These are some of the main features:
+
 1. Highly flexible classes for the representation of Element, Site, Molecule,
    Structure objects.
 2. Extensive io capabilities to manipulate many VASP input and output files
@@ -63,8 +64,9 @@ def get_spglib_ext():
 setup(
     name="pymatgen",
     packages=find_packages(),
-    version="2.3.1b",
-    install_requires=["numpy>=1.5", "pyhull>=1.3.6", "PyCifRW>=3.3"],
+    version="2.3.3b",
+    install_requires=["numpy>=1.5", "pyhull>=1.3.6", "PyCifRW>=3.3",
+                      "requests>=1.0"],
     extras_require={"electronic_structure": ["scipy>=0.10"],
                     "plotting": ["matplotlib>=1.1"],
                     "ase_adaptor": ["ase>=3.3"]},
@@ -73,18 +75,20 @@ setup(
                   "pymatgen.analysis": ["bvparam_1991.json", "icsd_bv.json"],
                   "pymatgen.io": ["*.cfg"],
                   "pymatgen.entries": ["*.cfg"],
+                  "pymatgen.structure_prediction": ["data/*.json"],
                   "pymatgen.vis": ["ElementColorSchemes.cfg"]},
     author="Shyue Ping Ong, Anubhav Jain, Michael Kocher, Geoffroy Hautier,"
-    "Will Richards, Dan Gunter, Shreyas Cholia, Vincent L Chevrier, "
-    "Rickard Armiento",
+    "William Davidson Richards, Stephen Dacek, Dan Gunter, Shreyas Cholia, "
+    "Vincent L Chevrier, Rickard Armiento",
     author_email="shyue@mit.edu, anubhavj@mit.edu, mpkocher@lbnl.gov, "
-    "geoffroy.hautier@uclouvain.be, wrichard@mit.edu, dkgunter@lbl.gov, "
-    "vincentchevrier@gmail.com, armiento@mit.edu",
+    "geoffroy.hautier@uclouvain.be, wrichard@mit.edu, sdacek@mit.edu, "
+    "dkgunter@lbl.gov, scholia@lbl.gov, vincentchevrier@gmail.com, "
+    "armiento@mit.edu",
     maintainer="Shyue Ping Ong",
     url="https://github.com/materialsproject/pymatgen/",
     license="MIT",
-    description="pymatgen is the Python library powering the "
-    "Materials Project (www.materialsproject.org).",
+    description="pymatgen is the Python materials analysis library powering "
+                "the Materials Project (www.materialsproject.org).",
     long_description=long_description,
     keywords=["vasp", "gaussian", "materials", "project",
               "electronic", "structure"],

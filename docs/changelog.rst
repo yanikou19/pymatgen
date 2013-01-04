@@ -1,6 +1,32 @@
 Change log
 ==========
 
+Version 2.3.2
+-------------
+1. More utilities for working with Periodic Boundary Conditions.
+2. Improved MPRester that supports more data and a new method of specifying
+   the API key for heavy users via a MAPI_KEY environment variable. Please
+   refer to the :doc:`usage pages </usage>` for more information.
+3. Vastly improved POTCAR setup script in scripts directly that is now
+   installed as part of a default pymatgen installation.
+4. Miscellaneous bug fixes and speedups.
+
+Version 2.3.1
+-------------
+1. Significant improvements to the high-level interface to the Materials API.
+   New interface provides more options to make it easier to get structures and
+   entries, better warnings and error handling. It uses the *requests*
+   library for a cleaner API.
+2. Bug fix for VolumetricData parsing and methods such as CHGCAR and LOCPOT.
+   Previously, the parsing was done incorrectly because VASP actually provides
+   data by running through the x-axis first, followed by y, then z.
+3. Bug fix for reverse_readline so that it works for gzipped and bzipped
+   strucutures (courtesy of Anubhav Jain).
+4. Fix "lossy" composition to_dict method.  Now composition.to_dict properly
+   returns a correct species string as a key for compositions using species,
+   instead of just the element symbols.
+5. Miscellaneous bug fixes.
+
 Version 2.3.0
 -------------
 1. Remove usage of scipy and external qhull callers. Now uses pyhull package.
