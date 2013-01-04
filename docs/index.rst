@@ -54,7 +54,9 @@ Latest Change Log
 
 1. New StructureMatcher that effectively replaces StructureFitter. Orders of
    magnitude faster and more robust. StructureFitter is now deprecated.
-2. Miscellaneous bug fixes and speedups.
+2. Vastly improved PrimitiveCellTransformation.
+3. A lot of core code is vectorized and now orders of magnitude faster.
+4. Many bug fixes and speedups.
 
 :doc:`Older versions </changelog>`
 
