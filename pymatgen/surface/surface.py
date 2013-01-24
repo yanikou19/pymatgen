@@ -1,18 +1,18 @@
 from pymatgen.core.structure import SiteCollection, Structure
 from pymatgen.core.lattice import Lattice
 from pymatgen.io.aseio import AseAtomsAdaptor
-import ase.lattice.general_surface as gensurface
 from pymatgen.core.sites import PeriodicSite
 import numpy as np
 from pymatgen.serializers.json_coders import MSONable
 from pymatgen.core.structure_modifier import StructureEditor
+
 
 class Surface(Structure):
     '''
     pymatgen Surface object
     '''
 
-    def __init__(self, lattice, species, coords, indices, vac, onesided=False, site_properties=None):
+    def __init__(self, lattice, species, coords, indices, vacuum,numlayers,sobat, onesided=False, site_properties=None):
         '''
         Create a surface slab.
         Args:
@@ -34,21 +34,37 @@ class Surface(Structure):
         else:
             raise ValueError("Invalid surface indices!") 
         
-        self._vacuum = vac
+        self._vacuum = vacuum
+        self._numlayers = numlayers
+        self._species = species
+        self._coords= coords
         self._onesided = onesided
+        self._sobat = sobat
+        
                               
     @property
     def indices(self):
         return self._indices
         
     @property
+    def numlayers(self):
+        return self._numlayers
+        
+    @property
     def vacuum(self):
         return self._vacuum
                    
+    def coords(self):
+        return self._coords
+
     def __str__(self):
         outs = "{0} surface slab with {1} Ang vacuum\n".format(self.indices, self.vacuum)
         return outs + Structure.__str__(self)
-       
+   
+    @property
+    def sobat(self):
+        return self._sobat
+    
     @staticmethod
     def fromstruct(struct, indices, vac):     
         return Surface(struct.lattice, struct.species, struct.frac_coords, indices, vac) 

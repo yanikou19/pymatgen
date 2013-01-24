@@ -9,6 +9,12 @@ import numpy.linalg as npl
 from numpy import pi
 import fractions
 import math 
+from pymatgen.command_line.aconvasp_caller import run_aconvasp_command
+from pymatgen.io.vaspio.vasp_input import Poscar
+from pymatgen.io.cifio import CifParser
+from pymatgen.symmetry.finder import SymmetryFinder
+from pymatgen.core.structure import Lattice, Structure
+from pymatgen.core.periodic_table import Element
 
 class Surftool():
     
@@ -18,7 +24,9 @@ class Surftool():
     def ang(self, v1, v2):
         if npl.norm(v1)==0 or npl.norm(v2)==0:
             raise StandardError('One of your vectors has length zero')
-        angle=np.arccos(np.dot(v1,v2)/(npl.norm(v1)*npl.norm(v2)))
+        x=np.dot(v1,v2)/(npl.norm(v1)*npl.norm(v2))
+        a= np.float('%.12f' %x)
+        angle=np.arccos(a)
         return angle
     
     def get2vectsinplane(self,basis, maxindex):
@@ -163,7 +171,6 @@ class Surftool():
         if millerindex.all()==mindex.all()*-1:
             v2=A[0]
             v1=A[1]
-        
         C=[]
         pgR=len(pg)
         for pgx in range(0,pgR):
@@ -171,9 +178,10 @@ class Surftool():
             T=pg[pgx,0]
             ang=pg[pgx,1]
             axis=np.array(pg[pgx,2:5])
+            
             if T==0:
                 TM=np.dot(TM,self.treflection(axis))
-            elif np.absolute(T)==1:
+            elif np.abs(T)==1:
                 if T==-1:
                     TM=TM*-1
                 else:
@@ -250,4 +258,53 @@ class Surftool():
         F=np.array([f1hat,f2hat,f3hat])
         return F
 
+    def getconventional(self,bulkstruct):
+        output=run_aconvasp_command(["aconvasp", "--sconv"],bulkstruct)
+        if "failed" in output[1]:
+            print output
+            raise SystemError("Aconvasp failed")
+        poscar_string=" "
+        for line in output[0].split("\n"):
+            poscar_string = poscar_string + line + "\n"
+        
+        conv=Poscar.from_string(poscar_string).struct
+        
+        if "HEX" in poscar_string:
+            output1=run_aconvasp_command(["aconvasp", "--abccar"], conv)
+            hex_string=[]
+            basis=[]
+            for line in output1[0].split("\n"):
+                hex_string.append(line)
+            for line in hex_string[2].split():
+                basis.append(line)
+            a=float(basis[0]);b=float(basis[1]);c=float(basis[2]);aa=float(basis[3]);ab=float(basis[4]);ac=float(basis[5])
+            
+            if np.abs(a-b)<0.001 and aa==ab and aa-90==0 and ac-120==0:
+                tbx=0.866025*b
+                tby=-0.5*b
+                hexlat = Lattice([[0, a, 0], [tbx, tby, 0], [0, 0, c]])
+                sconv=Structure(hexlat,conv.species,conv.frac_coords)
+                
+            else:
+                print "Check Hex Error"
+        else:
+            sconv=conv
+            
+        return sconv
+                
+    def getpg(self,convstruct):
+        output=run_aconvasp_command(["aconvasp", "--pgroup"],convstruct)
+        pg_string=[]
+        for line in output[0].split("\n"):
+            if "theta" in line:
+                fixline=line.replace(")"," )").replace("(","( ").replace(" -I","I").replace("=","= ").replace("m","0").replace("unity I","unityI")
+                splitfixline=fixline.split()
+                pgline=np.array([float(splitfixline[11]),float(splitfixline[3]),float(splitfixline[6]),float(splitfixline[7]),float(splitfixline[8])])
+                pg_string.append(pgline)
+        pg=np.zeros((len(pg_string),5))
+        for PAx in range(0,len(pg_string)):
+            for PAy in range(0,len(pg_string[PAx])):
+                pg[PAx][PAy]=pg_string[PAx][PAy]
+        return pg
+            
         
