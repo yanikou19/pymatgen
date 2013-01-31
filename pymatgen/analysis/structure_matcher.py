@@ -14,22 +14,19 @@ __email__ = "sdacek@mit.edu"
 __status__ = "Beta"
 __date__ = "Dec 3, 2012"
 
-
 import numpy as np
 import itertools
 import abc
 
+from pymatgen.serializers.json_coders import MSONable
 from pymatgen.core.structure import Structure
 from pymatgen.core.structure_modifier import StructureEditor
 from pymatgen.core.lattice import Lattice
-from pymatgen.transformations.standard_transformations import\
-    PrimitiveCellTransformation
-from pymatgen.util.coord_utils import find_in_coord_list_pbc
-from pymatgen.util.coord_utils import pbc_diff
 from pymatgen.core.composition import Composition
+from pymatgen.optimization.linear_assignment import LinearAssignment
 
 
-class AbstractComparator(object):
+class AbstractComparator(MSONable):
     """
     Abstract Comparator class. A Comparator defines how sites are compared in
     a structure.
@@ -50,7 +47,7 @@ class AbstractComparator(object):
                 First species. A dict of {specie/element: amt} as per the
                 definition in Site and PeriodicSite.
             sp2:
-                First species. A dict of {specie/element: amt} as per the
+                Second species. A dict of {specie/element: amt} as per the
                 definition in Site and PeriodicSite.
 
         Returns:
@@ -77,6 +74,20 @@ class AbstractComparator(object):
         """
         return
 
+    @staticmethod
+    def from_dict(d):
+        for trans_modules in ['structure_matcher']:
+            mod = __import__('pymatgen.analysis.' + trans_modules,
+                             globals(), locals(), [d['@class']], -1)
+            if hasattr(mod, d['@class']):
+                trans = getattr(mod, d['@class'])
+                return trans()
+        raise ValueError("Invalid Comparator dict")
+
+    @property
+    def to_dict(self):
+        return {"version": __version__, "@module": self.__class__.__module__,
+                "@class": self.__class__.__name__}
 
 class SpeciesComparator(AbstractComparator):
     """
@@ -85,9 +96,34 @@ class SpeciesComparator(AbstractComparator):
     """
 
     def are_equal(self, sp1, sp2):
+        """
+        True if species are exactly the same, i.e., Fe2+ == Fe2+ but not Fe3+.
+
+        Args:
+            sp1:
+                First species. A dict of {specie/element: amt} as per the
+                definition in Site and PeriodicSite.
+            sp2:
+                Second species. A dict of {specie/element: amt} as per the
+                definition in Site and PeriodicSite.
+
+        Returns:
+            Boolean indicating whether species are equal.
+        """
         return sp1 == sp2
 
     def get_structure_hash(self, structure):
+        """
+        Hash for structure.
+
+        Args:
+            structure:
+                A structure
+
+        Returns:
+            Reduced formula for the structure is used as a hash for the
+            SpeciesComparator.
+        """
         return structure.composition.reduced_formula
 
 
@@ -98,15 +134,78 @@ class ElementComparator(AbstractComparator):
     """
 
     def are_equal(self, sp1, sp2):
+        """
+        True if element:amounts are exactly the same, i.e.,
+        oxidation state is not considered.
+
+        Args:
+            sp1:
+                First species. A dict of {specie/element: amt} as per the
+                definition in Site and PeriodicSite.
+            sp2:
+                Second species. A dict of {specie/element: amt} as per the
+                definition in Site and PeriodicSite.
+
+        Returns:
+            Boolean indicating whether species are the same based on element
+            and amounts.
+        """
         comp1 = Composition(sp1)
         comp2 = Composition(sp2)
         return comp1.get_el_amt_dict() == comp2.get_el_amt_dict()
 
     def get_structure_hash(self, structure):
+        """
+        Hash for structure.
+
+        Args:
+            structure:
+                A structure
+
+        Returns:
+            Reduced formula for the structure is used as a hash for the
+            SpeciesComparator.
+        """
         return structure.composition.reduced_formula
 
 
-class StructureMatcher(object):
+class FrameworkComparator(AbstractComparator):
+    """
+    A Comparator that matches sites, regardless of species.
+    """
+
+    def are_equal(self, sp1, sp2):
+        """
+        True if there are atoms on both sites.
+
+        Args:
+            sp1:
+                First species. A dict of {specie/element: amt} as per the
+                definition in Site and PeriodicSite.
+            sp2:
+                Second species. A dict of {specie/element: amt} as per the
+                definition in Site and PeriodicSite.
+
+        Returns:
+            True always
+        """
+        return True
+
+    def get_structure_hash(self, structure):
+        """
+        Hash for structure.
+
+        Args:
+            structure:
+                A structure
+
+        Returns:
+            Number of atoms is a good hash for simple framework matching.
+        """
+        return len(structure)
+
+
+class StructureMatcher(MSONable):
     """
     Class to match structures by similarity.
 
@@ -134,14 +233,14 @@ class StructureMatcher(object):
             ii. If true: break and return true
     """
 
-    def __init__(self, ltol=0.2, stol=0.4, angle_tol=5, primitive_cell=True,
+    def __init__(self, ltol=0.2, stol=0.5, angle_tol=5, primitive_cell=True,
                  scale=True, comparator=SpeciesComparator()):
         """
         Args:
             ltol:
                 Fractional length tolerance. Default is 0.2.
             stol:
-                Site tolerance in Angstrom. Default is 0.4 Angstrom.
+                Site tolerance in Angstrom. Default is 0.5 Angstrom.
             angle_tol:
                 Angle tolerance in degrees. Default is 5 degrees.
             primitive_cell:
@@ -171,43 +270,58 @@ class StructureMatcher(object):
         self._primitive_cell = primitive_cell
         self._scale = scale
 
-    def _basis_change(self, coords, new_lattice):
-        #Convert cartesian coordinates to new basis
-        frac_coords = []
-        for i in range(len(coords)):
-            frac_coords.append(new_lattice.get_fractional_coords(coords[i]))
-        return frac_coords
+    def _get_lattices(self, s1, s2, vol_tol):
+        s1_lengths, s1_angles = s1.lattice.lengths_and_angles
+        ds = Structure(s2.lattice, ['X'], [[0, 0, 0]])
 
-    def _cmp_struct(self, s1, s2, nl, frac_tol):
+        all_nn = ds.get_neighbors(ds[0], (1 + self.ltol) * max(s1_lengths))
+
+        nv = []
+        for l in s1_lengths:
+            nvi = [site.coords for site, dist in all_nn
+                   if (1 - self.ltol) * l < dist < (1 + self.ltol) * l]
+            if not nvi:
+                return
+            nv.append(nvi)
+
+        #The vectors are broadcast into a 5-D array containing
+        #all permutations of the entries in nv[0], nv[1], nv[2]
+        #produces the same result as three nested loops over the
+        #same variables and calculating determinants individually
+        bfl = np.array(nv[0])[None, None, :, None, :] *\
+              np.array([1, 0, 0])[None, None, None, :, None] +\
+              np.array(nv[1])[None, :, None, None, :] *\
+              np.array([0, 1, 0])[None, None, None, :, None] +\
+              np.array(nv[2])[:, None, None, None, :] *\
+              np.array([0, 0, 1])[None, None, None, :, None]
+
+        #Compute volume of each array
+        vol = np.sum(bfl[:, :, :, 0, :] * np.cross(bfl[:, :, :, 1, :],
+                                                   bfl[:, :, :, 2, :]), 3)
+        #Find valid cells
+        valid = np.where(abs(vol) >= vol_tol)
+
+        #loop over valid lattices
+        for lat in bfl[valid]:
+            nl = Lattice(lat)
+            if np.allclose(nl.angles, s1_angles, rtol=0,
+                               atol=self.angle_tol):
+                    yield nl
+
+    def _cmp_struct(self, s1, s2, frac_tol):
         #compares the fractional coordinates
         for s1_coords, s2_coords in zip(s1, s2):
-            #Available vectors
-            avail = [1] * len(s1_coords)
-            for coord in s1_coords:
-                ind = find_in_coord_list_pbc(s2_coords, coord, frac_tol)
-                #if more than one match found, take closest
-                if len(ind) > 1:
-                    #only check against available vectors
-                    ind = [i for i in ind if avail[i]]
-                    if len(ind) > 1:
-                        #get cartesian distances from periodic distances
-                        pb_dists = np.array([pbc_diff(s2_coords[i], coord)
-                                             for i in ind])
-                        carts = nl.get_cartesian_coords(pb_dists)
-                        dists = np.array([np.linalg.norm(carts[i])
-                                          for i in range(len(ind))])
-                        #use smallest distance
-                        ind = np.where(dists == np.min(dists))[0][0]
-                        avail[ind] = 0
-                    elif len(ind):
-                        avail[ind[0]] = 0
-                    else:
-                        return False
-                elif len(ind) and avail[ind]:
-                    avail[ind] = 0
-                else:
-                    return False
+            dist = s1_coords[:, None] - s2_coords[None, :]
+            dist = abs(dist - np.round(dist))
+            dist[np.where(dist > frac_tol[None,None, :])] = 3 * len(dist)
+            cost = np.sum(dist, axis = -1)
+            if np.max(np.min(cost, axis = 0)) >= 3 * len(dist):
+                return False
+            lin = LinearAssignment(cost)
+            if lin.min_cost >= 3 * len(dist):
+                return False
         return True
+
 
     def fit(self, struct1, struct2):
         """
@@ -222,32 +336,34 @@ class StructureMatcher(object):
         Returns:
             True if the structures are the equivalent, else False.
         """
-        ltol = self.ltol
         stol = self.stol
-        angle_tol = self.angle_tol
         comparator = self._comparator
 
-        if comparator.get_structure_hash(struct1) != \
-            comparator.get_structure_hash(struct2):
+        if comparator.get_structure_hash(struct1) !=\
+           comparator.get_structure_hash(struct2):
             return False
 
         #primitive cell transformation
         if self._primitive_cell and struct1.num_sites != struct2.num_sites:
-            prim = PrimitiveCellTransformation()
-            struct1 = prim.apply_transformation(struct1)
-            struct2 = prim.apply_transformation(struct2)
+            struct1 = struct1.get_primitive_structure()
+            struct2 = struct2.get_primitive_structure()
 
         # Same number of sites
         if struct1.num_sites != struct2.num_sites:
             return False
 
-        #compute niggli lattices,
+        # Get niggli reduced cells. Though technically not necessary, this
+        # minimizes cell lengths and speeds up the matching of skewed
+        # cells considerably.
+        struct1 = struct1.get_reduced_structure(reduction_algo="niggli")
+        struct2 = struct2.get_reduced_structure(reduction_algo="niggli")
+
         nl1 = struct1.lattice
         nl2 = struct2.lattice
 
         #rescale lattice to same volume
         if self._scale:
-            scale_vol = (nl2.volume / nl1.volume) ** (1.0 / 6)
+            scale_vol = (nl2.volume / nl1.volume) ** (1 / 6)
             se1 = StructureEditor(struct1)
             nl1 = Lattice(nl1.matrix * scale_vol)
             se1.modify_lattice(nl1)
@@ -256,20 +372,12 @@ class StructureMatcher(object):
             nl2 = Lattice(nl2.matrix / scale_vol)
             se2.modify_lattice(nl2)
             struct2 = se2.modified_structure
+
         #Volume to determine invalid lattices
-        halfs2vol = nl2.volume / 2
+        vol_tol = nl2.volume / 2
 
         #fractional tolerance of atomic positions
         frac_tol = np.array([stol / i for i in struct1.lattice.abc])
-
-        #get possible new lattice vectors
-        ds = Structure(struct2.lattice, ['X'], [[0, 0, 0]])
-        nv = []
-        for i in range(3):
-            l = struct1.lattice.abc[i]
-            vs = ds.get_neighbors_in_shell([0, 0, 0], l, ltol * l)
-            nvi = [site.coords for site, dist in vs]
-            nv.append(nvi)
 
         #generate structure coordinate lists
         species_list = []
@@ -281,7 +389,6 @@ class StructureMatcher(object):
                     found = True
                     s1[i].append(site.frac_coords)
                     break
-
             if not found:
                 s1.append([site.frac_coords])
                 species_list.append(site.species_and_occu)
@@ -299,32 +406,23 @@ class StructureMatcher(object):
                     found = True
                     s2_cart[i].append(site.coords)
                     break
-            #get cartesian coords for s2, if no site match found return false
+
+            #if no site match found return false
             if not found:
                 return False
 
         #translate s1
         s1_translation = s1[0][0]
-
         for i in range(len(species_list)):
-            s1[i] = (s1[i] - s1_translation) % 1
-        #do permutations of vectors, check for equality
-        for a, b, c in itertools.product(nv[0], nv[1], nv[2]):
-            #invalid lattice
-            if np.linalg.det([a, b, c]) < halfs2vol:
-                continue
+            s1[i] = np.mod(s1[i] - s1_translation, 1)
 
-            nl = Lattice([a, b, c])
-            if np.allclose(nl.angles, struct1.lattice.angles, rtol=0,
-                           atol=angle_tol):
-                #Basis Change into new lattice
-                s2 = self._basis_change(s2_cart, nl)
-                for coord in s2[0]:
-                    t_s2 = []
-                    for coords in s2:
-                        t_s2.append((coords - coord) % 1)
-                    if self._cmp_struct(s1, t_s2, nl, frac_tol):
-                        return True
+        #do permutations of vectors, check for equality
+        for nl in self._get_lattices(struct1, struct2, vol_tol):
+            s2 = [nl.get_fractional_coords(c) for c in s2_cart]
+            for coord in s2[0]:
+                t_s2 = [np.mod(coords - coord, 1) for coords in s2]
+                if self._cmp_struct(s1, t_s2, frac_tol):
+                    return True
         return False
 
     def find_indexes(self, s_list, group_list):
@@ -370,14 +468,30 @@ class StructureMatcher(object):
             g = list(g)
             group_list = [[g[0]]]
             for i, j in itertools.combinations(range(len(g)), 2):
-                s1_ind, s2_ind = self.find_indexes([g[i], g[j]],
-                                                   group_list)
-
+                s1_ind, s2_ind = self.find_indexes([g[i], g[j]], group_list)
                 if s2_ind == -1 and self.fit(g[i], g[j]):
                     group_list[s1_ind].append(g[j])
                 elif (j - i) == 1 and s2_ind == -1:
                     group_list.append([g[j]])
-
             all_groups.extend(group_list)
-
         return all_groups
+
+    @property
+    def to_dict(self):
+        return {"version": __version__, "@module": self.__class__.__module__,
+                "@class": self.__class__.__name__,
+                "comparator": self._comparator.to_dict,
+                "stol": self.stol,
+                "ltol": self.ltol,
+                "angle_tol": self.angle_tol,
+                "primitive_cell": self._primitive_cell,
+                "scale": self._scale}
+
+    @staticmethod
+    def from_dict(d):
+        return StructureMatcher(ltol=d["ltol"], stol=d["stol"],
+            angle_tol=d["angle_tol"], primitive_cell=d["primitive_cell"],
+            scale=d["scale"],
+            comparator=AbstractComparator.from_dict(d["comparator"]))
+
+
