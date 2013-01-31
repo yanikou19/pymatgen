@@ -1,7 +1,7 @@
 __author__ = "Shyue Ping Ong, Anubhav Jain, Michael Kocher, " + \
              "Geoffroy Hautier, William Davidson Richard, Dan Gunter, " + \
              "Shreyas Cholia, Vincent L Chevrier, Rickard Armiento"
-__date__ = "Jan 4 , 2013"
+__date__ = "Jan 4 2013"
 __version__ = "2.4.0"
 
 #Useful aliases for commonly used objects and modules.

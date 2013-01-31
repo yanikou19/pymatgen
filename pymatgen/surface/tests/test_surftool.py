@@ -10,6 +10,13 @@ import numpy.linalg as npl
 from numpy import pi
 import math
 from pymatgen.surface.surftool import Surftool
+from pymatgen.io.vaspio.vasp_input import Poscar
+from pymatgen.io.cifio import CifParser
+import os
+
+
+test_dir = os.path.join(os.path.dirname(__file__))
+
 
 class Surftooltest(unittest.TestCase):
     
@@ -43,25 +50,29 @@ class Surftooltest(unittest.TestCase):
         basis=np.array([[0, 4.8050422055, 0],
                         [4.1612866760, -2.4025211027, 0],
                         [0, 0, 13.1105423350]])
-        print self.s.getmillerfrom2v(basis, v1, v2)
+
+    def testgetconventional(self):
+        p = Poscar.from_file(os.path.join(test_dir, 'POSCAR'))
+        bulkstruct = p.struct
+        sconv=self.s.getconventional(bulkstruct)
+        
+    def testgetpg(self):
+        p = Poscar.from_file(os.path.join(test_dir, 'POSCAR'))
+        bulkstruct = p.struct
+        sconv=self.s.getconventional(bulkstruct)
+        pg=self.s.getpg(sconv)
         
     def testgetsymfam(self):
-        pg=np.array([[1.0000,0,0,0,0],
-                    [0,180.0000,0,-1.0000,0],
-                    [0,180.0000,-0.8660,0.5000,0],
-                    [0,180.0000,0.8660,0.5000,0],
-                    [2.0000,180.0000,-0.8660,-0.5000,0],
-                    [2.0000,180.0000,0.0866,0.0500,0],
-                    [2.0000,180.0000,0,1.0000,0],
-                    [3.0000,120.0000,0,0,1.0000],
-                    [3.0000,240.0000,0,0,1.0000],
-                    [-3.0000,120.0000,0,0,1.0000],
-                    [-3.0000,240.0000,0,0,1.0000]])
-        basis=np.array([[0, 4.8050422055, 0],
-                        [4.1612866760, -2.4025211027, 0],
-                        [0, 0, 13.1105423350]])
+        p = Poscar.from_file(os.path.join(test_dir, 'POSCAR'))
+        bulkstruct = p.struct
+        sconv=self.s.getconventional(bulkstruct)
+        pg=self.s.getpg(sconv)
+        basis=sconv.lattice.matrix
         C=self.s.getsymfam(basis, np.array([1, 1, 3]), pg)
         
         
+        
+
+            
 if __name__ == '__main__':
     unittest.main()
