@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pymatgen.analysis.bond_valence import BVAnalyzer
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.command_line.aconvasp_caller import run_aconvasp_command
@@ -28,6 +29,44 @@ Created on Dec 20, 2012
 
 
 class VaspSurface():
+    def StandardSurfDict(self,bulkstruct,maxindex,slablength=15,vacuumlength=10,utrfix=0):
+        '''Create a dictionary of surfaces - key is index, value is a list of surfaces with that index'''
+        '''Eliminate polar, duplicate surfaces, return primitive slabs'''
+        
+        listofsurfs=self.makesurface(bulkstruct,maxindex,slablength,vacuumlength,utrfix)
+        print len(listofsurfs)
+        indices=np.zeros((len(listofsurfs),3))
+        for ii in range(0,len(listofsurfs)):
+            indices[ii]=listofsurfs[ii].indices
+        indices=np.array([np.array(x) for x in set(tuple(x) for x in indices)])
+        I = np.argsort(indices[:,0])
+        Millers=[]
+        for row in range(0,len(indices)):
+            Millers.append(indices[row])
+        surfdict=defaultdict(list)
+        for I in Millers:
+            indexlistofsurfs=[]
+            for surf in listofsurfs:
+                if all(surf.indices[a]==I[a] for a in range(0,3)):
+                    indexlistofsurfs.append(surf)
+            strI="["+str(int(I[0]))+","+str(int(I[1]))+","+str(int(I[2]))+"]"
+            surfdict[strI]=indexlistofsurfs
+            
+        '''Eliminate polar and duplicate surfaces in those lists'''
+            
+        for key in surfdict.keys():
+            print key
+            listofsurfs=surfdict[key]
+            listnopolarsurfs=self.checkpolar(listofsurfs)
+            print len(listnopolarsurfs)
+            listnoduplicates=self.checksame(listnopolarsurfs)
+            print len(listnoduplicates)
+            '''Make primitive slabs'''
+            primitives=self.make_primitive_slab(listnoduplicates)
+            surfdict[key]=primitives
+        return surfdict
+
+    
     def makesurface(self, bulkstruct,maxindex,slablength,vacuumlength,utrfix):
         '''Makes a list of surfaces from a bulk structure, given the initial parameters
         
@@ -35,11 +74,9 @@ class VaspSurface():
         maxindex=np.array of index, [1, 1, 1] for example
         slablength: If slablength is positive, that's the minimum length of slab in angstroms. If negative, that's number of layers desired
         vacuumlength: Vacuumlength
-        utrfix: Bad variable name, will change for now. Basically, fix termination or not? Fix = 1, enumerate all = 0
+        utrfix: Bad variable name, will change later. Basically, fix termination or not? Fix = 1, enumerate all = 0
         
         '''
-        
-        
         
         ListofSurfs=[]
         if vacuumlength==0:
@@ -50,9 +87,8 @@ class VaspSurface():
         atoms=bulkstruct.sites
         basis=bulkstruct.lattice.matrix
         
-        atomcoords=[]
-        for atom in atoms: 
-            atomcoords.append(atom.frac_coords)
+        atomcoords=np.array(bulkstruct.frac_coords)
+
         
         sconv=st.Surftool().getconventional(bulkstruct)
         pg=st.Surftool().getpg(sconv)
@@ -152,9 +188,11 @@ class VaspSurface():
                 primslab_string = primslab_string + line + "\n"
             primslabstruct=Poscar.from_string(primslab_string).struct
             
-            primslabstruct_coords=[]
-            for atom in primslabstruct.sites:
-                primslabstruct_coords.append(atom.frac_coords)
+            primslabstruct_coords=np.array(primslabstruct.frac_coords)
+            
+            
+            #for atom in primslabstruct.sites:
+            #    primslabstruct_coords.append(atom.frac_coords)
             
             '''bulk
             %   You don't want to do bulk
