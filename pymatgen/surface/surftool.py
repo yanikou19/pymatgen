@@ -42,9 +42,9 @@ class Surftool():
         l = float(maxindex[2])
        
         if numzero == 0:
-            hd=fractions.Fraction(1/h).limit_denominator(100).denominator
-            kd=fractions.Fraction(1/k).limit_denominator(100).denominator
-            ld=fractions.Fraction(1/l).limit_denominator(100).denominator
+            hd=fractions.Fraction(1/float(h)).limit_denominator(100).denominator
+            kd=fractions.Fraction(1/float(k)).limit_denominator(100).denominator
+            ld=fractions.Fraction(1/float(l)).limit_denominator(100).denominator
             lst=[hd,kd,ld]
             multfact=1
             for ii in lst:
@@ -75,8 +75,10 @@ class Surftool():
                     ind.append(jj)
                     P.append(maxindex[jj])
             
-            ad=fractions.Fraction(1/P[0]).limit_denominator(100).denominator
-            bd=fractions.Fraction(1/P[1]).limit_denominator(100).denominator
+            ad=fractions.Fraction(1/float(P[0])).limit_denominator(100).denominator
+            bd=fractions.Fraction(1/float(P[1])).limit_denominator(100).denominator
+            
+            
             lst=[ad,bd]
             multfact=1
             for ii in lst:
@@ -87,8 +89,8 @@ class Surftool():
                 pointtemp=np.array([0, 0, 0])
                 pointtemp[ind[mm]]=multfact/P[mm]
                 points[mm,:]=pointtemp
+            v2=points[1]-points[0]
             
-            v2=points[1,:]-points[0,:]
             
             twovects=np.array([v1,v2])
             P=np.array([p1, points[0],points[1]])
@@ -167,7 +169,6 @@ class Surftool():
         v1=A[0]
         v2=A[1]
         millerindex=self.getmillerfrom2v(basis, v1, v2)
-        
         if millerindex.all()==mindex.all()*-1:
             v2=A[0]
             v1=A[1]
@@ -308,3 +309,22 @@ class Surftool():
         return pg
             
         
+    def indexfromstr(self,str):
+        '''Follows format of str: [h,k,l]'''
+        index=str.replace("["," ").replace("]"," ").replace(","," ")
+        
+        if self._representsint(index.split()[0]) and self._representsint(index.split()[1]) and  self._representsint(index.split()[2]): 
+            h=int(index.split()[0])
+            k=int(index.split()[1])
+            l=int(index.split()[2])
+            return np.array([h,k,l]) 
+        else:
+            raise SystemError("str is not in index form - not integers")
+        
+        
+    def _representsint(self,s):
+        try: 
+            int(s)
+            return True
+        except ValueError:
+            return False

@@ -30,11 +30,13 @@ class Surftooltest(unittest.TestCase):
         self.assertAlmostEqual(angle, pi/2, places=4)
     
     def testget2vectsinplane(self):
-        basis=[[1, 0.00, 0.00],
-               [0.00, 1, 0.00],
-               [0.00, 0.00, 1]]
-        maxindex=np.array([1, 2, 3])
+        p = Poscar.from_file(os.path.join(test_dir, 'POSCAR'))
+        bulkstruct = p.struct
+        sconv=self.s.getconventional(bulkstruct)
+        basis=np.array(sconv.lattice.matrix)
+        maxindex=np.array([-1, 0, 2])
         twovects,P=self.s.get2vectsinplane(basis, maxindex)
+        
     
     def testtreflection(self):
         v=np.array([1,1,1])
@@ -68,10 +70,12 @@ class Surftooltest(unittest.TestCase):
         sconv=self.s.getconventional(bulkstruct)
         pg=self.s.getpg(sconv)
         basis=sconv.lattice.matrix
-        C=self.s.getsymfam(basis, np.array([1, 1, 3]), pg)
+        C=self.s.getsymfam(basis, np.array([-1, 0, 2]), pg)
         
-        
-        
+    def testindexfromstr(self):
+        I="[1,2,3]"
+        Inp=self.s.indexfromstr(I)
+         
 
             
 if __name__ == '__main__':
