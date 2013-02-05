@@ -69,7 +69,7 @@ class CreateSurfaceInputs():
                             seldyn=SurfaceIO().relaxslab(slab, relaxlayers, zonly)
                             poscar=Poscar(slab,comment=None,selective_dynamics=seldyn).write_file(slabrelaxdirectory+"/POSCAR")
                         else:
-                            poscar=Poscar(bulk).write_file(slabrelaxdirectory+"/POSCAR")
+                            poscar=Poscar(slab).write_file(slabrelaxdirectory+"/POSCAR")
                         Kpts=Kpoints().gamma_automatic((7,7,1), (0,0,0))
                         Kpts.write_file(slabrelaxdirectory+"/KPOINTS")
                         INCAR=SurfaceIO().surfincar(slab,relaxyn)
