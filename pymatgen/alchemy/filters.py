@@ -26,9 +26,6 @@ class AbstractStructureFilter(MSONable):
     """
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self):
-        pass
-
     @abc.abstractmethod
     def test(self, structure):
         """
@@ -165,8 +162,9 @@ class RemoveDuplicatesFilter(AbstractStructureFilter):
     This filter removes exact duplicate structures from the transmuter.
     """
 
-    def __init__(self, structure_matcher=StructureMatcher(
-        comparator=ElementComparator())):
+    def __init__(self,
+                 structure_matcher=StructureMatcher(
+                     comparator=ElementComparator())):
         """
         Args:
             comparator:
@@ -197,3 +195,23 @@ class RemoveDuplicatesFilter(AbstractStructureFilter):
         return {"version": __version__, "@module": self.__class__.__module__,
                 "@class": self.__class__.__name__,
                 "init_args": {"structure_matcher": self._sm.to_dict}}
+        
+class ChargeBalanceFilter(AbstractStructureFilter):
+    """
+     This filter removes structures that are not 
+     charge balanced from the transmuter. 
+     This only works if the structure is 
+     oxidation state decorated, as structures
+     with only elemental sites are automatically
+     assumed to have net charge of 0
+    """
+    def test(self, structure):
+        if structure.charge == 0.0:
+            return True
+        else:
+            return False
+        
+    @property
+    def to_dict(self):
+        return {"@module": self.__class__.__module__,
+                "@class": self.__class__.__name__}
