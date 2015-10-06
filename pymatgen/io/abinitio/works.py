@@ -22,7 +22,7 @@ from pydispatch import dispatcher
 from pymatgen.core.units import EnergyArray
 from . import wrappers
 from .nodes import Dependency, Node, NodeError, NodeResults, check_spectator
-from .tasks import (Task, AbinitTask, ScfTask, NscfTask, PhononTask, DdkTask, 
+from .tasks import (Task, AbinitTask, ScfTask, NscfTask, PhononTask, ElphonTask, DdkTask, 
                     BseTask, RelaxTask, DdeTask, BecTask, ScrTask, SigmaTask)
 
 from .utils import Directory
@@ -287,6 +287,11 @@ class NodeContainer(six.with_metaclass(abc.ABCMeta)):
     def register_phonon_task(self, *args, **kwargs):
         """Register a phonon task."""
         kwargs["task_class"] = PhononTask
+        return self.register_task(*args, **kwargs)
+
+    def register_elphon_task(self, *args, **kwargs):
+        """Register an elphon task."""
+        kwargs["task_class"] = ElphonTask
         return self.register_task(*args, **kwargs)
 
     def register_ddk_task(self, *args, **kwargs):
