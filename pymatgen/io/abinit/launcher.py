@@ -179,7 +179,7 @@ class PyLauncher(object):
 
         return num_launched
 
-    def rapidfire(self, max_nlaunch=-1, max_loops=1, sleep_time=5):
+    def rapidfire(self, max_nlaunch=-1, max_loops=1, max_works=1000, sleep_time=5):
         """
         Keeps submitting `Tasks` until we are out of jobs or no job is ready to run.
 
@@ -199,7 +199,7 @@ class PyLauncher(object):
             if count > 0:
                 time.sleep(sleep_time)
 
-            tasks = self.fetch_tasks_to_run()
+            tasks = self.fetch_tasks_to_run(max_works)
 
             # I don't know why but we receive duplicated tasks.
             if any(task in launched for task in tasks):
@@ -227,15 +227,21 @@ class PyLauncher(object):
 
         return num_launched
 
-    def fetch_tasks_to_run(self):
+    def fetch_tasks_to_run(self,max_works):
         """
         Return the list of tasks that can be submitted.
         Empty list if no task has been found.
         """
         tasks_to_run = []
 
+        nworks = 0
         for work in self.flow:
-            tasks_to_run.extend(work.fetch_alltasks_to_run())
+            if not work.all_done:
+              tasks = work.fetch_alltasks_to_run()
+              tasks_to_run.extend(tasks)
+              nworks += 1
+              if nworks > max_works:
+                break
 
         return tasks_to_run
 
@@ -317,6 +323,7 @@ class PyFlowScheduler(object):
         self.safety_ratio = int(kwargs.pop("safety_ratio", 5))
         #self.max_etime_s = kwargs.pop("max_etime_s", )
         self.max_nlaunches = kwargs.pop("max_nlaunches", -1)
+        self.max_works = kwargs.pop("max_works", 1000)
         self.debug = kwargs.pop("debug", 0)
         self.fix_qcritical = kwargs.pop("fix_qcritical", True)
         self.rmflow = kwargs.pop("rmflow", False)
@@ -604,7 +611,7 @@ class PyFlowScheduler(object):
 
         # Submit the tasks that are ready.
         try:
-            nlaunch = PyLauncher(flow).rapidfire(max_nlaunch=max_nlaunch, sleep_time=10)
+            nlaunch = PyLauncher(flow).rapidfire(max_nlaunch=max_nlaunch, max_works=self.max_works, sleep_time=10)
             self.nlaunch += nlaunch
 
             if nlaunch:

@@ -3294,6 +3294,80 @@ class ElphonTask(PhononTask):
         # Now we can resubmit the job.
         return self._restart()
 
+    def make_links(self):
+        """Replace the default behaviour of make_links"""
+        print("In ElphonTask make_links")
+
+        for dep in self.deps:
+            print("dep = ",dep,"dep.exts = ",dep.exts)
+            if "1WF" in dep.exts or "1DEN" in dep.exts:
+                ddk_task = dep.node
+                wf1_files = ddk_task.outdir.find_1wf_files()
+                den1_files = ddk_task.outdir.find_1den_files()
+                if not wf1_files and not den1_files:
+                    raise RuntimeError("%s didn't produce the 1WF nor the 1DEN file" % ddk_task)
+
+                # Get (fortran) idir and costruct the name of the 1WF expected by Abinit
+                rfdir = list(ddk_task.input["rfdir"])
+                if rfdir.count(1) != 1:
+                    raise RuntimeError("Only one direction should be specifned in rfdir but rfdir = %s" % rfdir)
+
+                rfatpol = list(ddk_task.input["rfatpol"])
+                if rfatpol[0] != rfatpol[1]:
+                    raise RuntimeError("Only one atom should be moved in rfatpol but rfatpol = %s" % rfatpol)
+
+                idir = rfdir.index(1) + 1
+                iatom = rfatpol[0]
+
+                ddk_case = idir +  3 * (iatom-1)
+
+                if wf1_files:
+                  for wf1_file in wf1_files:
+                    new_in_file = os.path.basename(wf1_file.path).replace("out", "in", 1)
+                    in_file = os.path.join(self.indir.path, new_in_file)
+                    os.symlink(wf1_file.path, in_file)
+                if den1_files:
+                  for den1_file in den1_files:
+                    new_in_file = os.path.basename(den1_file.path).replace("out", "in", 1)
+                    in_file = os.path.join(self.indir.path, new_in_file)
+                    os.symlink(den1_file.path, in_file)
+
+            elif dep.exts == ["DEN"]:
+                gs_task = dep.node
+                out_wfk = gs_task.outdir.has_abiext("DEN")
+                if not out_wfk:
+                    raise RuntimeError("%s didn't produce the DEN file" % gs_task)
+
+                try:
+                  os.symlink(out_wfk, self.indir.path_in("in_DEN"))
+                except:
+                  pass
+
+            elif dep.exts == ["WFK"]:
+                gs_task = dep.node
+                out_wfk = gs_task.outdir.has_abiext("WFK")
+                if not out_wfk:
+                    raise RuntimeError("%s didn't produce the WFK file" % gs_task)
+
+                try:
+                  os.symlink(out_wfk, self.indir.path_in("in_WFK"))
+                except:
+                  pass
+
+            elif dep.exts == ["WFQ"]:
+                gs_task = dep.node
+                out_wfk = gs_task.outdir.has_abiext("WFQ")
+                if not out_wfk:
+                    raise RuntimeError("%s didn't produce the WFQ file" % gs_task)
+
+                try:
+                  os.symlink(out_wfk, self.indir.path_in("in_WFQ"))
+                except:
+                  pass
+
+            else:
+                raise ValueError("Don't know how to handle extension: %s" % dep.exts)
+    
 class ManyBodyTask(AbinitTask):
     """
     Base class for Many-body tasks (Screening, Sigma, Bethe-Salpeter)
